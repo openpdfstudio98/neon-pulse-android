@@ -1,0 +1,11 @@
+{
+  "appId": "com.neonpulse.orbitdash",
+  "appName": "Neon Pulse Orbit Dash",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "neon-pulse-orbit-dash",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Android Capacitor starter for Neon Pulse",
+  "scripts": {
+    "android:add": "cap add android",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/app": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/android": "^7.0.0"
+  }
+}
