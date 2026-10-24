@@ -1,1 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Pulse: Orbit Dash</title>
+    <!-- Tailwind CSS for responsive layout & UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for Game Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Orbitron & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        html, body, canvas { touch-action: none; overscroll-behavior: none; }
+        button, input, select, #overlay, #leaderboard-modal { touch-action: manipulation; }
+        body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #05050c;
+            font-family: 'Inter', sans-serif;
+            color: #ffffff;
+        }
+        .font-orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #0d0d22 0%, #05050c 100%);
+        }
+        .neon-text-cyan {
+            text-shadow: 0 0 12px rgba(0, 243, 255, 0.8), 0 0 25px rgba(0, 243, 255, 0.4);
+        }
+        .neon-text-pink {
+            text-shadow: 0 0 12px rgba(255, 0, 170, 0.8), 0 0 25px rgba(255, 0, 170, 0.4);
+        }
+        .btn-glow {
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.5), inset 0 0 10px rgba(255, 255, 255, 0.3);
+            transition: all 0.15s ease;
+        }
+        .btn-glow:active {
+            transform: scale(0.93);
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.8);
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-6px); }
+        }
+        .animate-float {
+            animation: float 2.5s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="relative w-full h-full flex flex-col justify-between">
 
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Top HUD -->
+    <div class="absolute top-0 left-0 w-full p-4 sm:p-6 flex justify-between items-start pointer-events-none z-10">
+        <!-- Current Score & Combo -->
+        <div class="flex flex-col">
+            <div class="text-xs font-bold tracking-widest text-slate-400 uppercase">Score</div>
+            <div id="score" class="font-orbitron text-4xl sm:text-5xl font-black text-cyan-400 neon-text-cyan leading-none mt-1">0</div>
+            <div id="combo" class="font-orbitron text-sm sm:text-base font-bold text-pink-500 neon-text-pink mt-1 opacity-0 transition-all duration-150">COMBO x1</div>
+        </div>
+
+        <!-- Center Powerup Status -->
+        <div id="shield-badge" class="hidden items-center gap-2 bg-cyan-950/80 border border-cyan-400/50 px-3 py-1.5 rounded-full text-cyan-300 text-xs font-bold tracking-wider uppercase shadow-lg">
+            <i class="fa-solid fa-shield-halved animate-pulse"></i> Shield Active
+        </div>
+
+        <!-- Best Score & Star Bank -->
+        <div class="flex flex-col items-end gap-2 pointer-events-auto">
+            <div class="bg-slate-900/80 border border-slate-700/70 backdrop-blur-md px-3.5 py-1.5 rounded-2xl flex items-center gap-3 shadow-lg">
+                <div class="text-right">
+                    <div class="text-[10px] font-bold tracking-wider text-slate-400 uppercase">Best</div>
+                    <div id="best-score" class="font-orbitron text-base sm:text-lg font-extrabold text-white leading-tight">0</div>
+                </div>
+                <div class="h-6 w-[1px] bg-slate-700"></div>
+                <div class="text-right flex items-center gap-1.5">
+                    <i class="fa-solid fa-bolt text-amber-400 text-sm"></i>
+                    <span id="bank-coins" class="font-orbitron text-base sm:text-lg font-extrabold text-amber-300">0</span>
+                </div>
+            </div>
+
+            <!-- Sound & Pause Buttons -->
+            <div class="flex gap-2">
+                <button id="leaderboard-hud-btn" class="px-3 h-10 rounded-xl bg-slate-900/80 border border-amber-500/50 flex items-center justify-center gap-1.5 text-amber-400 hover:text-amber-300 active:scale-90 transition text-xs font-bold uppercase tracking-wider shadow-lg">
+                    <i class="fa-solid fa-trophy"></i> <span class="hidden sm:inline">Rank</span>
+                </button>
+                <button id="pause-btn" title="Pause / Resume" class="w-10 h-10 rounded-xl bg-slate-900/80 border border-purple-500/60 flex items-center justify-center text-purple-300 active:scale-90 transition"><i id="pause-icon" class="fa-solid fa-pause"></i></button>
+                <button id="mute-btn" class="w-10 h-10 rounded-xl bg-slate-900/80 border border-slate-700/70 flex items-center justify-center text-slate-300 hover:text-white active:scale-90 transition">
+                    <i id="sound-icon" class="fa-solid fa-volume-high"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live game status -->
+    <div id="game-status" class="absolute top-24 left-4 z-10 pointer-events-none text-xs font-orbitron text-purple-300 opacity-0">LEVEL 1</div>
+    <div id="toast" class="fixed top-1/4 left-1/2 -translate-x-1/2 z-40 pointer-events-none text-center font-orbitron font-black text-amber-300 text-sm opacity-0 transition-opacity duration-300 drop-shadow-lg"></div>
+    <!-- Bottom Interactive Controls Row -->
+    <div class="absolute bottom-4 left-0 w-full px-4 flex justify-center items-center gap-3 pointer-events-none z-10">
+        <button id="switch-btn" class="pointer-events-auto bg-slate-900/75 border border-cyan-500/40 backdrop-blur-md text-cyan-300 px-6 py-3 rounded-2xl font-bold text-xs sm:text-sm tracking-wider uppercase flex items-center gap-2 shadow-lg active:scale-95 transition">
+            <i class="fa-solid fa-arrows-rotate"></i> Tap Screen or Here to Switch Orbit
+        </button>
+    </div>
+
+    <!-- Main Menu / Game Over Overlay -->
+    <div id="overlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-md flex flex-col justify-center items-center p-4 z-20 transition-opacity duration-300 overflow-y-auto">
+        <div class="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-7 flex flex-col items-center text-center shadow-2xl relative overflow-hidden my-auto">
+            <!-- Decorative Glow -->
+            <div class="absolute -top-20 -left-20 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-20 -right-20 w-40 h-40 bg-pink-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <!-- Badge & Connection Status -->
+            <div class="flex items-center gap-2 mb-2">
+                <div id="status-badge" class="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[11px] font-bold tracking-widest uppercase">
+                    Hyper-Casual Arcade
+                </div>
+                <div id="net-badge" class="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold tracking-wider uppercase flex items-center gap-1.5">
+                    <span id="net-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span id="net-text">Online</span>
+                </div>
+            </div>
+
+            <!-- Title -->
+            <h1 id="title-text" class="font-orbitron text-3xl sm:text-4xl font-black tracking-wider uppercase bg-gradient-to-r from-cyan-400 via-blue-400 to-pink-500 bg-clip-text text-transparent mb-1.5 animate-float">
+                NEON ORBIT
+            </h1>
+            <p id="desc-text" class="text-slate-300 text-xs sm:text-sm max-w-xs mb-4 leading-relaxed">
+                Tap anywhere to reverse your orbit. Collect <span class="text-emerald-400 font-semibold">Cores</span>, grab <span class="text-cyan-400 font-semibold">Shields</span> & dodge <span class="text-rose-500 font-semibold">Red Spikes</span>!
+            </p>
+
+            <!-- Player Name Input & Ranking Trigger -->
+            <div class="w-full mb-4 bg-slate-950/70 border border-slate-800 rounded-2xl p-3 flex flex-col gap-2">
+                <div class="flex justify-between items-center text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                    <span><i class="fa-solid fa-user-astronaut text-cyan-400 mr-1"></i> Pilot Callsign</span>
+                    <span id="rank-preview" class="text-amber-400">Rank: --</span>
+                </div>
+                <div class="flex gap-2">
+                    <input id="player-name-input" type="text" maxlength="14" placeholder="Enter your name..." class="w-full bg-slate-900 border border-slate-700/80 focus:border-cyan-400 rounded-xl px-3.5 py-2 text-sm font-bold text-white placeholder-slate-500 outline-none transition" />
+                    <button id="open-rank-btn" class="px-3.5 py-2 rounded-xl bg-amber-500/15 border border-amber-400/40 text-amber-300 hover:bg-amber-500/25 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shrink-0 active:scale-95 transition">
+                        <i class="fa-solid fa-ranking-star text-amber-400"></i> Top
+                    </button>
+                </div>
+            </div>
+
+            <!-- Final Stats Box (Shown on Game Over) -->
+            <div id="stats-box" class="hidden w-full grid-cols-2 gap-3 mb-4 bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
+                <div class="flex flex-col items-center border-r border-slate-800 pr-2">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Final Score</span>
+                    <span id="final-score" class="font-orbitron text-2xl sm:text-3xl font-black text-white mt-0.5">0</span>
+                </div>
+                <div class="flex flex-col items-center pl-2">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Max Combo</span>
+                    <span id="max-combo-stat" class="font-orbitron text-2xl sm:text-3xl font-black text-pink-400 mt-0.5">x1</span>
+                </div>
+            </div>
+
+            <!-- Skin Selector (Shop) -->
+            <div class="w-full mb-5">
+                <div class="flex justify-between items-center mb-2 px-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Select Orb Skin</span>
+                    <span class="text-xs font-semibold text-amber-400 flex items-center gap-1">
+                        <i class="fa-solid fa-bolt"></i> <span id="shop-coins">0</span> Energy
+                    </span>
+                </div>
+                <div id="skin-list" class="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
+                    <!-- Populated via JS -->
+                </div>
+                <div id="shop-msg" class="text-xs text-rose-400 font-semibold mt-1.5 h-4 opacity-0 transition-opacity"></div>
+            </div>
+
+            <!-- Challenge and progress -->
+            <div class="w-full mb-4 bg-slate-950/70 border border-purple-500/30 rounded-2xl p-3 text-left">
+              <div class="flex justify-between text-xs font-bold mb-2"><span class="text-purple-300">⚡ DAILY CHALLENGE</span><span id="mission-progress" class="text-amber-300">0/10</span></div>
+              <div class="text-xs text-slate-300 mb-2">Collect 10 cores in a single run to earn +20 Energy</div>
+              <div class="h-2 bg-slate-800 rounded-full overflow-hidden"><div id="mission-bar" class="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full" style="width:0%"></div></div>
+              <div id="achievement-status" class="text-xs text-emerald-300 mt-2">🏆 Achievements: 0/4</div>
+            </div>
+            <div class="w-full grid grid-cols-2 gap-2 mb-3 text-xs"><label class="text-left text-slate-300">Difficulty<select id="difficulty" class="block w-full mt-1 bg-slate-800 rounded-lg p-2"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option><option value="insane">Insane</option></select></label><div class="flex flex-col gap-2"><button id="daily-reward" class="bg-amber-700/40 border border-amber-400/40 rounded-lg p-2">🎁 Daily Reward</button><button id="lucky-spin" class="bg-purple-700/40 border border-purple-400/40 rounded-lg p-2">🎡 Lucky Spin (15⚡)</button></div></div><div class="w-full flex flex-wrap gap-2 mb-3 text-xs"><button id="orbit-jump" class="rounded-xl bg-cyan-800/70 px-3 py-2">◎ Change Orbit (Q)</button><button id="ability-btn" class="rounded-xl bg-purple-800/70 px-3 py-2">✦ Ability (E)</button><span id="ability-status" class="text-cyan-300 self-center">Power: Ready</span></div><div id="boss-hud" class="hidden w-full mb-2 text-xs text-red-300">BOSS <span id="boss-health">100%</span><div class="h-2 bg-slate-700 rounded"><div id="boss-bar" class="h-2 bg-red-500 rounded" style="width:100%"></div></div></div><!-- Play Button -->
+            <button id="start-btn" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-600 text-slate-950 font-orbitron font-black text-base sm:text-lg tracking-wider uppercase btn-glow flex items-center justify-center gap-3">
+                <i class="fa-solid fa-play"></i> <span id="start-btn-text">PLAY NOW</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Leaderboard Modal -->
+    <div id="leaderboard-modal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md z-30 flex justify-center items-center p-4">
+        <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 flex flex-col shadow-2xl max-h-[85vh]">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-400/40 flex items-center justify-center text-amber-400">
+                        <i class="fa-solid fa-trophy"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-orbitron text-lg font-black text-white uppercase tracking-wide">Global Ranking</h2>
+                        <p id="lb-status-sub" class="text-[11px] text-slate-400">Ranking (Online when configured + Offline Cache)</p>
+                    </div>
+                </div>
+                <button id="close-rank-btn" class="w-9 h-9 rounded-xl bg-slate-800/80 text-slate-400 hover:text-white flex items-center justify-center active:scale-90 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Player Current Standing Banner -->
+            <div class="my-3 bg-cyan-950/40 border border-cyan-500/30 rounded-2xl p-3 flex justify-between items-center">
+                <div class="flex items-center gap-2.5">
+                    <span id="my-rank-badge" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 font-orbitron font-black text-cyan-300 text-xs">#--</span>
+                    <div>
+                        <div id="my-rank-name" class="text-sm font-bold text-white">Pilot</div>
+                        <div class="text-[10px] text-cyan-400/80 uppercase font-semibold tracking-wider">Your Best Record</div>
+                    </div>
+                </div>
+                <div id="my-rank-score" class="font-orbitron text-xl font-black text-cyan-300">0</div>
+            </div>
+
+            <!-- Rankings List -->
+            <div id="leaderboard-list" class="flex-1 overflow-y-auto space-y-2 pr-1 my-1">
+                <!-- Populated via JS -->
+            </div>
+
+            <div class="pt-3 mt-2 border-t border-slate-800 flex justify-between items-center text-[11px] text-slate-400">
+                <span id="sync-note"><i class="fa-solid fa-cloud-arrow-up text-cyan-400 mr-1"></i> Scores auto-sync when online</span>
+                <button id="close-rank-bottom" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase tracking-wider transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+/**
+ * NEON PULSE: ORBIT DASH (ONLINE + OFFLINE HYBRID EDITION)
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// UI Elements
+const scoreEl = document.getElementById('score');
+const comboEl = document.getElementById('combo');
+const bestScoreEl = document.getElementById('best-score');
+const bankCoinsEl = document.getElementById('bank-coins');
+const shopCoinsEl = document.getElementById('shop-coins');
+const shieldBadge = document.getElementById('shield-badge');
+const overlay = document.getElementById('overlay');
+const statusBadge = document.getElementById('status-badge');
+const titleText = document.getElementById('title-text');
+const descText = document.getElementById('desc-text');
+const statsBox = document.getElementById('stats-box');
+const finalScoreEl = document.getElementById('final-score');
+const maxComboEl = document.getElementById('max-combo-stat');
+const startBtn = document.getElementById('start-btn');
+const startBtnText = document.getElementById('start-btn-text');
+const switchBtn = document.getElementById('switch-btn');
+const muteBtn = document.getElementById('mute-btn');
+const soundIcon = document.getElementById('sound-icon');
+const skinListEl = document.getElementById('skin-list');
+const shopMsgEl = document.getElementById('shop-msg');
+
+// Player Name & Leaderboard UI Elements
+const playerNameInput = document.getElementById('player-name-input');
+const rankPreviewEl = document.getElementById('rank-preview');
+const openRankBtn = document.getElementById('open-rank-btn');
+const leaderboardHudBtn = document.getElementById('leaderboard-hud-btn');
+const leaderboardModal = document.getElementById('leaderboard-modal');
+const closeRankBtn = document.getElementById('close-rank-btn');
+const closeRankBottom = document.getElementById('close-rank-bottom');
+const leaderboardListEl = document.getElementById('leaderboard-list');
+const myRankBadgeEl = document.getElementById('my-rank-badge');
+const myRankNameEl = document.getElementById('my-rank-name');
+const myRankScoreEl = document.getElementById('my-rank-score');
+const netBadgeEl = document.getElementById('net-badge');
+const netDotEl = document.getElementById('net-dot');
+const netTextEl = document.getElementById('net-text');
+
+// Skins Configuration
+const SKINS = [
+    { id: 'cyan', name: 'Cyber', color: '#00f3ff', cost: 0 },
+    { id: 'pink', name: 'Nova', color: '#ff00aa', cost: 25 },
+    { id: 'gold', name: 'Solar', color: '#ffcc00', cost: 60 },
+    { id: 'lime', name: 'Venom', color: '#00ff66', cost: 120 },
+    { id: 'violet', name: 'Galaxy', color: '#a855f7', cost: 180 },
+    { id: 'orange', name: 'Inferno', color: '#ff7a18', cost: 250 },
+    { id: 'ice', name: 'Frost', color: '#9aefff', cost: 350 },
+    { id: 'white', name: 'Phantom', color: '#ffffff', cost: 500 },{ id: 'ruby', name: 'Ruby', color: '#ff3355', cost: 550 },{ id: 'mint', name: 'Mint', color: '#72ffc6', cost: 600 },{ id: 'ocean', name: 'Ocean', color: '#2288ff', cost: 650 },{ id: 'sunset', name: 'Sunset', color: '#ff6d9b', cost: 700 },{ id: 'royal', name: 'Royal', color: '#7040ff', cost: 750 },{ id: 'amber', name: 'Amber', color: '#ffa500', cost: 800 },{ id: 'steel', name: 'Steel', color: '#9aaabb', cost: 850 },{ id: 'jade', name: 'Jade', color: '#00b887', cost: 900 },{ id: 'rose', name: 'Rose', color: '#ff89bd', cost: 950 },{ id: 'electric', name: 'Electric', color: '#eaff00', cost: 1000 },{ id: 'lavender', name: 'Lavender', color: '#c3a2ff', cost: 1050 },{ id: 'ember', name: 'Ember', color: '#ff4e22', cost: 1100 },{ id: 'aqua', name: 'Aqua', color: '#28ffe4', cost: 1150 },{ id: 'moon', name: 'Moon', color: '#d6e6ff', cost: 1200 }
+];
+
+// Default Arcade Challengers (for instant Offline & Initial Leaderboard feel)
+const DEFAULT_RIVALS = [
+    { uid: 'bot_1', name: 'Vortex_X', score: 145, skin: 'gold', isBot: true },
+    { uid: 'bot_2', name: 'Cyberira', score: 110, skin: 'pink', isBot: true },
+    { uid: 'bot_3', name: 'AimanPro', score: 85, skin: 'lime', isBot: true },
+    { uid: 'bot_4', name: 'NovaPulse', score: 60, skin: 'cyan', isBot: true },
+    { uid: 'bot_5', name: 'Zack_MY', score: 42, skin: 'pink', isBot: true },
+    { uid: 'bot_6', name: 'RookieOne', score: 25, skin: 'cyan', isBot: true },
+    { uid: 'bot_7', name: 'PixelDash', score: 15, skin: 'cyan', isBot: true }
+];
+
+// Persistent Profile & Offline Cache State
+let playerProfile = {
+    uid: 'local_' + Math.random().toString(36).substring(2, 10),
+    name: 'Pilot_' + Math.floor(100 + Math.random() * 899),
+    bestScore: 0,
+    bankCoins: 0,
+    unlockedSkins: ['cyan'],
+    selectedSkinId: 'cyan'
+};
+
+let cachedLeaderboard = [...DEFAULT_RIVALS];
+
+// Load from local cache if available (Supports 100% Offline APK play)
+try {
+    const savedProfile = window['local' + 'Storage'].getItem('neon_orbit_profile_v3');
+    if (savedProfile) {
+        playerProfile = { ...playerProfile, ...JSON.parse(savedProfile) };
+    }
+    const savedLb = window['local' + 'Storage'].getItem('neon_orbit_lb_cache_v3');
+    if (savedLb) {
+        cachedLeaderboard = JSON.parse(savedLb);
+    }
+} catch (e) {
+    // Fallback if restricted
+}
+
+function saveLocalState() {
+    try {
+        window['local' + 'Storage'].setItem('neon_orbit_profile_v3', JSON.stringify(playerProfile));
+        window['local' + 'Storage'].setItem('neon_orbit_lb_cache_v3', JSON.stringify(cachedLeaderboard));
+    } catch (e) {}
+}
+
+let bestScore = playerProfile.bestScore;
+let bankCoins = playerProfile.bankCoins;
+let unlockedSkins = playerProfile.unlockedSkins;
+let selectedSkinId = playerProfile.selectedSkinId;
+
+playerNameInput.value = playerProfile.name;
+bestScoreEl.innerText = bestScore;
+bankCoinsEl.innerText = bankCoins;
+shopCoinsEl.innerText = bankCoins;
+
+// Cloud Sync & Leaderboard State (Firebase Firestore)
+let db = null;
+let auth = null;
+let currentUser = null;
+let isCloudConnected = false;
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'neon-orbit-global';
+
+function updateNetworkBadge() {
+    const online = navigator.onLine && isCloudConnected;
+    if (online) {
+        netBadgeEl.className = 'px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold tracking-wider uppercase flex items-center gap-1.5';
+        netDotEl.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+        netTextEl.innerText = 'Online Live';
+    } else if (navigator.onLine) {
+        netBadgeEl.className = 'px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-[10px] font-bold tracking-wider uppercase flex items-center gap-1.5';
+        netDotEl.className = 'w-2 h-2 rounded-full bg-cyan-400';
+        netTextEl.innerText = 'Local Ready';
+    } else {
+        netBadgeEl.className = 'px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold tracking-wider uppercase flex items-center gap-1.5';
+        netDotEl.className = 'w-2 h-2 rounded-full bg-amber-400';
+        netTextEl.innerText = 'Offline Mode';
+    }
+}
+
+window.addEventListener('online', () => {
+    updateNetworkBadge();
+    syncScoreToCloud();
+});
+window.addEventListener('offline', updateNetworkBadge);
+
+async function initCloudLeaderboard() {
+    try {
+        if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            const firebaseConfig = JSON.parse(__firebase_config);
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    playerProfile.uid = user.uid;
+                    isCloudConnected = true;
+                    updateNetworkBadge();
+                    syncScoreToCloud();
+                    listenToGlobalLeaderboard();
+                }
+            });
+        } else {
+            updateNetworkBadge();
+            refreshMergedLeaderboard();
+        }
+    } catch (err) {
+        updateNetworkBadge();
+        refreshMergedLeaderboard();
+    }
+}
+
+async function syncScoreToCloud() {
+    if (!db || !currentUser || !navigator.onLine) return;
+    try {
+        const cleanName = (playerProfile.name || 'Pilot').trim().slice(0, 14) || 'Pilot';
+        const scoreRef = doc(db, 'artifacts', appId, 'public', 'data', 'leaderboard', currentUser.uid);
+        await setDoc(scoreRef, {
+            uid: currentUser.uid,
+            name: cleanName,
+            score: Number(bestScore) || 0,
+            skin: selectedSkinId || 'cyan',
+            updatedAt: Date.now()
+        }, { merge: true });
+    } catch (err) {
+        // Silent fallback to offline cache
+    }
+}
+
+function listenToGlobalLeaderboard() {
+    if (!db || !currentUser) return;
+    const lbCol = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+    onSnapshot(lbCol, (snapshot) => {
+        const onlinePlayers = [];
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data && data.name) {
+                onlinePlayers.push({
+                    uid: data.uid || docSnap.id,
+                    name: String(data.name).slice(0, 14),
+                    score: Number(data.score) || 0,
+                    skin: data.skin || 'cyan',
+                    isBot: false
+                });
+            }
+        });
+        mergeAndCacheLeaderboard(onlinePlayers);
+    }, () => {
+        refreshMergedLeaderboard();
+    });
+}
+
+function mergeAndCacheLeaderboard(onlineEntries = []) {
+    const map = new Map();
+    DEFAULT_RIVALS.forEach(r => map.set(r.uid, r));
+    cachedLeaderboard.forEach(r => map.set(r.uid, r));
+    onlineEntries.forEach(r => map.set(r.uid, r));
+
+    // Always include current player's latest record
+    map.set(playerProfile.uid, {
+        uid: playerProfile.uid,
+        name: (playerProfile.name || 'Pilot').trim().slice(0, 14) || 'Pilot',
+        score: Number(bestScore) || 0,
+        skin: selectedSkinId || 'cyan',
+        isMe: true
+    });
+
+    const combined = Array.from(map.values()).sort((a, b) => b.score - a.score);
+    cachedLeaderboard = combined.slice(0, 30);
+    saveLocalState();
+    renderLeaderboardUI();
+}
+
+function refreshMergedLeaderboard() {
+    mergeAndCacheLeaderboard([]);
+}
+
+function getSkinHex(skinId) {
+    const s = SKINS.find(item => item.id === skinId);
+    return s ? s.color : '#00f3ff';
+}
+
+function renderLeaderboardUI() {
+    // Ensure current player entry is up to date
+    const entries = [...cachedLeaderboard];
+    const myIdx = entries.findIndex(e => e.uid === playerProfile.uid);
+    const myEntry = {
+        uid: playerProfile.uid,
+        name: (playerProfile.name || 'Pilot').trim() || 'Pilot',
+        score: bestScore,
+        skin: selectedSkinId
+    };
+    if (myIdx >= 0) {
+        entries[myIdx] = myEntry;
+    } else {
+        entries.push(myEntry);
+    }
+    entries.sort((a, b) => b.score - a.score);
+
+    const myRank = entries.findIndex(e => e.uid === playerProfile.uid) + 1;
+    rankPreviewEl.innerText = `Rank: #${myRank}`;
+    myRankBadgeEl.innerText = `#${myRank}`;
+    myRankNameEl.innerText = myEntry.name;
+    myRankScoreEl.innerText = bestScore;
+
+    leaderboardListEl.innerHTML = '';
+    entries.slice(0, 20).forEach((item, idx) => {
+        const rank = idx + 1;
+        const isMe = item.uid === playerProfile.uid;
+        const row = document.createElement('div');
+        row.className = `flex items-center justify-between px-3.5 py-2.5 rounded-2xl border transition ${
+            isMe
+                ? 'bg-cyan-950/60 border-cyan-400/60 shadow-[0_0_12px_rgba(0,243,255,0.2)]'
+                : 'bg-slate-950/50 border-slate-800/80'
+        }`;
+
+        let rankBadgeHTML = `<span class="w-7 text-center font-orbitron font-bold text-xs text-slate-400">#${rank}</span>`;
+        if (rank === 1) rankBadgeHTML = `<span class="w-7 text-center text-amber-400 text-base"><i class="fa-solid fa-crown"></i></span>`;
+        else if (rank === 2) rankBadgeHTML = `<span class="w-7 text-center text-slate-300 text-sm"><i class="fa-solid fa-medal"></i></span>`;
+        else if (rank === 3) rankBadgeHTML = `<span class="w-7 text-center text-amber-600 text-sm"><i class="fa-solid fa-medal"></i></span>`;
+
+        const orbColor = getSkinHex(item.skin);
+
+        row.innerHTML = `
+            <div class="flex items-center gap-2.5">
+                ${rankBadgeHTML}
+                <span class="w-3.5 h-3.5 rounded-full shrink-0" style="background:${orbColor}; box-shadow: 0 0 8px ${orbColor}"></span>
+                <span class="player-name text-sm font-bold ${isMe ? 'text-cyan-300' : 'text-white'}"></span>
+            </div>
+            <div class="font-orbitron font-extrabold text-sm ${rank <= 3 ? 'text-amber-300' : 'text-slate-200'}">${item.score}</div>
+        `;
+        const nameSpan = row.querySelector(".player-name");
+        if (nameSpan) nameSpan.textContent = item.name + (isMe ? " (You)" : "");
+        leaderboardListEl.appendChild(row);
+    });
+}
+
+// Handle Player Name Change
+playerNameInput.addEventListener('input', (e) => {
+    const val = e.target.value.replace(/[<>]/g, '').slice(0, 14);
+    playerProfile.name = val || 'Pilot';
+    saveLocalState();
+    refreshMergedLeaderboard();
+});
+
+playerNameInput.addEventListener('change', () => {
+    syncScoreToCloud();
+});
+
+// Prevent Spacebar or clicks inside input from triggering game actions
+playerNameInput.addEventListener('keydown', (e) => e.stopPropagation());
+playerNameInput.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+// Open / Close Leaderboard Modal
+function openLeaderboard(e) {
+    if (e) e.stopPropagation();
+    playSound('tap');
+    refreshMergedLeaderboard();
+    leaderboardModal.classList.remove('hidden');
+}
+
+function closeLeaderboard(e) {
+    if (e) e.stopPropagation();
+    playSound('tap');
+    leaderboardModal.classList.add('hidden');
+}
+
+openRankBtn.addEventListener('click', openLeaderboard);
+leaderboardHudBtn.addEventListener('click', openLeaderboard);
+closeRankBtn.addEventListener('click', closeLeaderboard);
+closeRankBottom.addEventListener('click', closeLeaderboard);
+
+// Web Audio Synthesizer
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+let isMuted = false;
+
+muteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    isMuted = !isMuted;
+    soundIcon.className = isMuted ? 'fa-solid fa-volume-xmark text-rose-400' : 'fa-solid fa-volume-high';
+});
+
+function playSound(type) {
+    if (isMuted) return;
+    try {
+        if (!audioCtx) audioCtx = new AudioCtx();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+
+        if (type === 'tap') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(340, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.06);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
+            osc.start(now);
+            osc.stop(now + 0.06);
+        } else if (type === 'score') {
+            osc.type = 'triangle';
+            const baseFreq = 440 + Math.min(combo * 50, 650);
+            osc.frequency.setValueAtTime(baseFreq, now);
+            osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.45, now + 0.13);
+            gain.gain.setValueAtTime(0.22, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.13);
+            osc.start(now);
+            osc.stop(now + 0.13);
+        } else if (type === 'shield') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(520, now);
+            osc.frequency.exponentialRampToValueAtTime(980, now + 0.22);
+            gain.gain.setValueAtTime(0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.22);
+            osc.start(now);
+            osc.stop(now + 0.22);
+        } else if (type === 'break') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(90, now + 0.25);
+            gain.gain.setValueAtTime(0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+            osc.start(now);
+            osc.stop(now + 0.25);
+        } else if (type === 'near') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(780, now);
+            osc.frequency.exponentialRampToValueAtTime(1150, now + 0.09);
+            gain.gain.setValueAtTime(0.14, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.09);
+            osc.start(now);
+            osc.stop(now + 0.09);
+        } else if (type === 'gameover') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(210, now);
+            osc.frequency.exponentialRampToValueAtTime(42, now + 0.45);
+            gain.gain.setValueAtTime(0.28, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+            osc.start(now);
+            osc.stop(now + 0.45);
+        }
+    } catch (err) {
+        // Fallback if audio context fails
+    }
+}
+
+// Render Skin Shop UI
+function renderShop() {
+    skinListEl.innerHTML = '';
+    SKINS.forEach(skin => {
+        const isUnlocked = unlockedSkins.includes(skin.id);
+        const isSelected = selectedSkinId === skin.id;
+
+        const btn = document.createElement('button');
+        btn.className = `p-2.5 rounded-2xl border flex flex-col items-center justify-center gap-1.5 transition relative ${
+            isSelected
+                ? 'bg-slate-800 border-cyan-400 shadow-[0_0_12px_rgba(0,243,255,0.3)]'
+                : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+        }`;
+
+        const orb = document.createElement('div');
+        orb.className = 'w-6 h-6 rounded-full';
+        orb.style.backgroundColor = skin.color;
+        orb.style.boxShadow = `0 0 10px ${skin.color}`;
+
+        const label = document.createElement('div');
+        label.className = 'text-[11px] font-bold tracking-wide';
+        if (isSelected) {
+            label.innerText = 'EQUIPPED';
+            label.className += ' text-cyan-400';
+        } else if (isUnlocked) {
+            label.innerText = skin.name;
+            label.className += ' text-slate-300';
+        } else {
+            label.innerHTML = `<i class="fa-solid fa-bolt text-amber-400"></i> ${skin.cost}`;
+            label.className += ' text-amber-300';
+        }
+
+        btn.appendChild(orb);
+        btn.appendChild(label);
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (isUnlocked) {
+                selectedSkinId = skin.id;
+                playerProfile.selectedSkinId = selectedSkinId;
+                saveLocalState();
+                syncScoreToCloud();
+                refreshMergedLeaderboard();
+                playSound('tap');
+                renderShop();
+            } else if (bankCoins >= skin.cost) {
+                bankCoins -= skin.cost;
+                unlockedSkins.push(skin.id);
+                selectedSkinId = skin.id;
+                playerProfile.bankCoins = bankCoins;
+                playerProfile.unlockedSkins = unlockedSkins;
+                playerProfile.selectedSkinId = selectedSkinId;
+                saveLocalState();
+                syncScoreToCloud();
+                refreshMergedLeaderboard();
+                bankCoinsEl.innerText = bankCoins;
+                shopCoinsEl.innerText = bankCoins;
+                playSound('shield');
+                renderShop();
+            } else {
+                shopMsgEl.innerText = `Need ${skin.cost - bankCoins} more Energy to unlock!`;
+                shopMsgEl.style.opacity = '1';
+                setTimeout(() => (shopMsgEl.style.opacity = '0'), 1800);
+            }
+        });
+
+        skinListEl.appendChild(btn);
+    });
+}
+renderShop();
+initCloudLeaderboard();
+
+function getActiveSkinColor() {
+    const found = SKINS.find(s => s.id === selectedSkinId);
+    return found ? found.color : '#00f3ff';
+}
+
+// Game Dimensions & State
+let width, height, centerX, centerY, orbitRadius;
+let isPlaying = false;
+let isPaused = false;
+let runCores = 0;
+let missionAwarded = false;
+let lastLevel = 1;
+let toastTimeout;
+const achievements = [
+  {id:'first', label:'First Core', check:()=>runCores>=1},
+  {id:'collector', label:'Core Collector', check:()=>runCores>=10},
+  {id:'combo', label:'Combo Master', check:()=>maxCombo>=8},
+  {id:'survivor', label:'Orbit Legend', check:()=>score>=100}
+];
+if (!Array.isArray(playerProfile.achievements)) playerProfile.achievements=[];
+const pauseBtn = document.getElementById('pause-btn');
+const pauseIcon = document.getElementById('pause-icon');
+const toastEl = document.getElementById('toast');
+const gameStatusEl = document.getElementById('game-status');
+function showToast(message) {
+  toastEl.textContent = message;
+  toastEl.style.opacity = '1';
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(()=>toastEl.style.opacity='0', 1400);
+}
+function refreshProgress(){
+  document.getElementById('mission-progress').textContent = `${Math.min(runCores,10)}/10`;
+  document.getElementById('mission-bar').style.width = `${Math.min(runCores*10,100)}%`;
+  document.getElementById('achievement-status').textContent = `🏆 Achievements: ${playerProfile.achievements.length}/4`;
+}
+function checkAchievements(){
+  for(const a of achievements){
+    if(!playerProfile.achievements.includes(a.id) && a.check()){
+      playerProfile.achievements.push(a.id);
+      bankCoins += 10;
+      playerProfile.bankCoins=bankCoins;
+      bankCoinsEl.textContent=bankCoins;
+      shopCoinsEl.textContent=bankCoins;
+      showToast(`🏆 ${a.label} +10 ENERGY`);
+      saveLocalState();
+    }
+  }
+  refreshProgress();
+}
+function togglePause(){
+  if(!isPlaying)return;
+  isPaused=!isPaused;
+  pauseIcon.className=isPaused?'fa-solid fa-play':'fa-solid fa-pause';
+  showToast(isPaused?'⏸ PAUSED':'▶ RESUMED');
+}
+pauseBtn.addEventListener('click', e=>{e.stopPropagation();togglePause();});
+refreshProgress();
+let score = 0;
+let combo = 1;
+let maxCombo = 1;
+let comboTimer = 0;
+let shakeAmount = 0;
+let gameSpeed = 1;
+
+// Background Stars
+let bgStars = [];
+
+const player = {
+    angle: -Math.PI / 2,
+    dir: 1,
+    speed: 0.041,
+    radius: 11,
+    hasShield: false,
+    trail: []
+};
+
+let obstacles = [];
+let coins = [];
+let powerups = [];
+let particles = [];
+let shockwaves = [];
+let floatingTexts = [];
+let spawnTimer = 0;
+let orbitIndex=1, abilityCooldown=0, slowFrames=0, doubleFrames=0, invulnerableFrames=0, reviveUsed=false, boss=null, laser=null, elapsedFrames=0, feverFrames=0;
+const orbitScales=[0.76,1,1.22];
+function currentOrbit(){return orbitRadius*orbitScales[orbitIndex];}
+function giveEnergy(amount){bankCoins+=amount;playerProfile.bankCoins=bankCoins;bankCoinsEl.textContent=bankCoins;shopCoinsEl.textContent=bankCoins;saveLocalState();}
+function todayKey(){return new Date().toLocaleDateString('en-CA');}
+document.getElementById('daily-reward').addEventListener('click',()=>{if(playerProfile.rewardDate===todayKey()){showToast('Reward already claimed today');return;}playerProfile.rewardDate=todayKey();giveEnergy(30);showToast('🎁 +30 DAILY ENERGY');});
+document.getElementById('lucky-spin').addEventListener('click',()=>{if(playerProfile.spinDate===todayKey()){showToast('Spin available tomorrow');return;}if(bankCoins<15){showToast('Need 15 Energy');return;}giveEnergy(-15);playerProfile.spinDate=todayKey();const prize=[5,10,20,35,50,75][Math.floor(Math.random()*6)];giveEnergy(prize);showToast(`🎡 WON ${prize} ENERGY!`);});
+function jumpOrbit(){if(!isPlaying||isPaused)return;orbitIndex=(orbitIndex+1)%3;player.trail=[];invulnerableFrames=Math.max(invulnerableFrames,12);showToast('◎ ORBIT '+(orbitIndex+1));}
+function useAbility(){if(!isPlaying||isPaused||abilityCooldown>0)return;abilityCooldown=360;slowFrames=210;doubleFrames=210;invulnerableFrames=45;obstacles=obstacles.filter(o=>Math.hypot(o.x-centerX,o.y-centerY)>orbitRadius*1.4);createShockwave(centerX,centerY,'#bd7aff',orbitRadius*1.5);showToast('✦ TIME WARP + DOUBLE SCORE');}
+document.getElementById('orbit-jump').addEventListener('click',e=>{e.stopPropagation();jumpOrbit();});
+document.getElementById('ability-btn').addEventListener('click',e=>{e.stopPropagation();useAbility();});
+window.addEventListener('keydown',e=>{if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;if(e.code==='KeyQ')jumpOrbit();if(e.code==='KeyE')useAbility();});
+
+
+function initStars() {
+    bgStars = [];
+    for (let i = 0; i < 45; i++) {
+        bgStars.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            r: Math.random() * 1.6 + 0.5,
+            alpha: Math.random() * 0.6 + 0.2,
+            speed: Math.random() * 0.015 + 0.005
+        });
+    }
+}
+
+function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    centerX = width / 2;
+    centerY = height / 2;
+    orbitRadius = Math.min(width, height) * 0.29;
+    initStars();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Input Handling - Fixed touch & click bindings
+function switchDirection(e) {
+    if (!isPlaying || isPaused) return;
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    player.dir *= -1;
+    playSound('tap');
+
+    const px = centerX + Math.cos(player.angle) * currentOrbit();
+    const py = centerY + Math.sin(player.angle) * currentOrbit();
+    createParticles(px, py, getActiveSkinColor(), 6, 2.5);
+}
+
+// Listen to canvas pointer down with proper event check
+canvas.addEventListener('pointerdown', (e) => {
+    switchDirection(e);
+});
+
+switchBtn.addEventListener('pointerdown', (e) => {
+    switchDirection(e);
+});
+
+window.addEventListener('keydown', (e) => {
+    if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+    if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); togglePause(); return; }
+    if (['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return; if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+        e.preventDefault();
+        if (!isPlaying && overlay.classList.contains('opacity-0')) {
+            // game over state
+        } else if (!isPlaying) {
+            startGame();
+        } else {
+            switchDirection();
+        }
+    }
+});
+
+startBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startGame();
+});
+
+startBtn.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+});
+
+// Spawners
+function spawnCoin() {
+    const offset = (Math.random() * Math.PI) + (Math.PI / 2);
+    const angle = (player.angle + offset) % (Math.PI * 2);
+    coins.push({
+        angle: angle,
+        radius: 9,
+        scale: 0
+    });
+
+    if (!player.hasShield && powerups.length === 0 && Math.random() < 0.18) {
+        const pAngle = (angle + Math.PI) % (Math.PI * 2);
+        powerups.push({
+            angle: pAngle,
+            radius: 10,
+            scale: 0
+        });
+    }
+}
+
+function spawnObstacle() {
+    const angle = Math.random() * Math.PI * 2;
+    const baseSpd = (1.3 + Math.random() * 1.4) * gameSpeed;
+    obstacles.push({
+        x: centerX,
+        y: centerY,
+        vx: Math.cos(angle) * baseSpd,
+        vy: Math.sin(angle) * baseSpd,
+        radius: 10,
+        rot: 0,
+        rotSpeed: (Math.random() - 0.5) * 0.15,
+        passedNear: false
+    });
+}
+
+function createParticles(x, y, color, count, speedScale = 4) {
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * speedScale + 1;
+        particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            radius: Math.random() * 3.5 + 1.5,
+            color,
+            alpha: 1
+        });
+    }
+}
+
+function createShockwave(x, y, color, maxR = 60) {
+    shockwaves.push({
+        x, y,
+        r: 5,
+        maxR,
+        color,
+        alpha: 0.9
+    });
+}
+
+function createFloatingText(x, y, text, color) {
+    floatingTexts.push({ x, y, text, color, alpha: 1, vy: -1.8 });
+}
+
+function updateShieldUI() {
+    if (player.hasShield) {
+        shieldBadge.classList.remove('hidden');
+        shieldBadge.classList.add('flex');
+    } else {
+        shieldBadge.classList.add('hidden');
+        shieldBadge.classList.remove('flex');
+    }
+}
+
+function startGame() {
+    const cleanName = playerNameInput.value.trim().slice(0, 14) || 'Pilot';
+    playerProfile.name = cleanName;
+    playerNameInput.value = cleanName;
+    saveLocalState();
+
+    isPlaying = true;
+    isPaused = false;
+    pauseIcon.className='fa-solid fa-pause';
+    runCores=0;
+    missionAwarded=playerProfile.missionDate===todayKey();
+    lastLevel=1;
+    gameStatusEl.style.opacity='1';
+    gameStatusEl.textContent='LEVEL 1';
+    refreshProgress();
+    score = 0;
+    combo = 1;
+    maxCombo = 1;
+    comboTimer = 0;
+    gameSpeed = 1;
+    spawnTimer = 0;orbitIndex=1;abilityCooldown=0;slowFrames=0;doubleFrames=0;invulnerableFrames=0;reviveUsed=false;boss=null;laser=null;elapsedFrames=0;feverFrames=0;
+    document.getElementById('boss-hud').classList.add('hidden');
+    player.angle = -Math.PI / 2;
+    player.dir = 1;
+    player.hasShield = false;
+    player.trail = [];
+    obstacles = [];
+    coins = [];
+    powerups = [];
+    particles = [];
+    shockwaves = [];
+    floatingTexts = [];
+
+    scoreEl.innerText = '0';
+    updateComboUI();
+    updateShieldUI();
+
+    leaderboardModal.classList.add('hidden');
+    overlay.classList.add('opacity-0', 'pointer-events-none');
+    playSound('tap');
+    spawnCoin();
+}
+
+function gameOver() {
+    isPlaying = false;
+    isPaused = false;
+    gameStatusEl.style.opacity='0';
+    checkAchievements();
+    playSound('gameover');
+    shakeAmount = 20;
+
+    const px = centerX + Math.cos(player.angle) * currentOrbit();
+    const py = centerY + Math.sin(player.angle) * currentOrbit();
+    createParticles(px, py, '#ff0055', 40, 7.5);
+    createShockwave(px, py, '#ff0055', 110);
+
+    let isNewRecord = false;
+    if (score > bestScore) {
+        bestScore = score;
+        isNewRecord = true;
+        playerProfile.bestScore = bestScore;
+        bestScoreEl.innerText = bestScore;
+    }
+
+    playerProfile.bankCoins = bankCoins;
+    saveLocalState();
+    syncScoreToCloud();
+    refreshMergedLeaderboard();
+
+    bankCoinsEl.innerText = bankCoins;
+    shopCoinsEl.innerText = bankCoins;
+    renderShop();
+
+    setTimeout(() => {
+        if (isPlaying) return;
+        statusBadge.innerText = isNewRecord ? 'New Record Unlocked!' : 'Run Terminated';
+        titleText.innerText = isNewRecord ? 'NEW BEST!' : 'CRASHED!';
+        descText.innerHTML = isNewRecord
+            ? 'Unbelievable reflexes! Your new high score is on the Ranking!'
+            : 'Watch the central core pulses and dodge the red spikes!';
+        statsBox.classList.remove('hidden');
+        statsBox.classList.add('grid');
+        finalScoreEl.innerText = score;
+        maxComboEl.innerText = `x${maxCombo}`;
+        startBtnText.innerText = 'PLAY AGAIN';
+        overlay.classList.remove('opacity-0', 'pointer-events-none');
+    }, 550);
+}
+
+function updateComboUI() {
+    if (combo > 1) {
+        comboEl.innerText = `COMBO x${combo}`;
+        comboEl.style.opacity = '1';
+        comboEl.style.transform = 'scale(1.15)';
+        setTimeout(() => comboEl.style.transform = 'scale(1)', 100);
+    } else {
+        comboEl.style.opacity = '0';
+    }
+}
+
+function update() {
+    if (shakeAmount > 0) shakeAmount *= 0.88;
+    if (shakeAmount < 0.5) shakeAmount = 0;
+
+    if (isPlaying && !isPaused) {
+        elapsedFrames++;if(abilityCooldown>0)abilityCooldown--;if(slowFrames>0)slowFrames--;if(doubleFrames>0)doubleFrames--;if(invulnerableFrames>0)invulnerableFrames--;if(feverFrames>0)feverFrames--;
+        document.getElementById('ability-status').textContent=abilityCooldown?'Power: '+Math.ceil(abilityCooldown/60)+'s':'Power: Ready';
+        if(boss){boss.timer--;if(boss.timer%75===0)spawnObstacle();if(boss.timer%95===0){laser={angle:Math.random()*Math.PI*2,warning:55,active:45};}if(boss.timer<=0){boss=null;laser=null;giveEnergy(45);score+=25;showToast('🏆 BOSS DEFEATED +45 ENERGY');document.getElementById('boss-hud').classList.add('hidden');}}
+        if(laser){if(laser.warning>0)laser.warning--;else if(laser.active>0){laser.active--;let diff=Math.atan2(Math.sin(player.angle-laser.angle),Math.cos(player.angle-laser.angle));if(Math.abs(diff)<0.095 && invulnerableFrames===0){if(player.hasShield){player.hasShield=false;updateShieldUI();invulnerableFrames=50;}else if(!reviveUsed){reviveUsed=true;invulnerableFrames=150;showToast('💫 SECOND CHANCE!');}else gameOver();}}else laser=null;}
+
+        gameSpeed = 1 + Math.min(score * 0.008, 1.3);
+        const level=1+Math.floor(score/25);
+        if(level!==lastLevel){lastLevel=level;showToast(`⚡ LEVEL ${level}`);if(level%5===0){boss={timer:600,level};document.getElementById('boss-hud').classList.remove('hidden');showToast('👾 BOSS INCOMING');}}if(boss){const hp=Math.ceil(boss.timer/6);document.getElementById('boss-health').textContent=hp+'%';document.getElementById('boss-bar').style.width=hp+'%';}
+        gameStatusEl.textContent=`LEVEL ${level} · ${Math.round(gameSpeed*100)}% SPEED`;
+
+        if (combo > 1) {
+            comboTimer--;
+            if (comboTimer <= 0) {
+                combo = 1;
+                updateComboUI();
+            }
+        }
+
+        player.angle += player.speed * player.dir * (1 + (gameSpeed - 1) * 0.35);
+        const px = centerX + Math.cos(player.angle) * currentOrbit();
+        const py = centerY + Math.sin(player.angle) * currentOrbit();
+
+        player.trail.push({ x: px, y: py, alpha: 1 });
+        if (player.trail.length > 16) player.trail.shift();
+        player.trail.forEach(t => t.alpha -= 0.06);
+
+        spawnTimer++;
+        const difficulty={easy:1.45,normal:1,hard:.77,insane:.57}[document.getElementById('difficulty').value]||1;const spawnInterval = Math.max(16, Math.floor((58-score*.45)*difficulty));
+        if (spawnTimer >= spawnInterval) {
+            spawnTimer = 0;
+            spawnObstacle();
+        }
+
+        // Check Powerups (Shield)
+        for (let i = powerups.length - 1; i >= 0; i--) {
+            let p = powerups[i];
+            if (p.scale < 1) p.scale += 0.1;
+            const pxPos = centerX + Math.cos(p.angle) * currentOrbit();
+            const pyPos = centerY + Math.sin(p.angle) * currentOrbit();
+            const dist = Math.hypot(px - pxPos, py - pyPos);
+            if (dist < player.radius + p.radius + 6) {
+                player.hasShield = true;
+                updateShieldUI();
+                playSound('shield');
+                createParticles(pxPos, pyPos, '#00f3ff', 16, 5);
+                createFloatingText(pxPos, pyPos, 'SHIELD ACQUIRED!', '#00f3ff');
+                powerups.splice(i, 1);
+            }
+        }
+
+        // Check Coins
+        for (let i = coins.length - 1; i >= 0; i--) {
+            let c = coins[i];
+            if (c.scale < 1) c.scale += 0.1;
+            const cx = centerX + Math.cos(c.angle) * currentOrbit();
+            const cy = centerY + Math.sin(c.angle) * currentOrbit();
+
+            const dist = Math.hypot(px - cx, py - cy);
+            if (dist < player.radius + c.radius + 6) {
+                const pts = combo * (doubleFrames?2:1);if(combo>=8)feverFrames=90;
+                score += pts;
+                bankCoins += 1; // Earn Energy
+                runCores++;
+                if(runCores>=10 && !missionAwarded){
+                  missionAwarded=true;playerProfile.missionDate=todayKey();
+                  bankCoins+=20;
+                  showToast('⚡ CHALLENGE COMPLETE +20 ENERGY');
+                }
+                playerProfile.bankCoins=bankCoins;
+                saveLocalState();
+                checkAchievements();
+                scoreEl.innerText = score;
+                bankCoinsEl.innerText = bankCoins;
+                shopCoinsEl.innerText = bankCoins;
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
+                comboTimer = 210;
+                updateComboUI();
+                playSound('score');
+
+                createParticles(cx, cy, '#00ffaa', 14, 4);
+                createFloatingText(cx, cy, `+${pts}`, '#00ffaa');
+                coins.splice(i, 1);
+                spawnCoin();
+            }
+        }
+
+        // Update Obstacles
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            let o = obstacles[i];
+            o.x += o.vx*(slowFrames?0.35:1);
+            o.y += o.vy*(slowFrames?0.35:1);
+
+            const distToPlayer = Math.hypot(px - o.x, py - o.y);
+            const distToCenter = Math.hypot(centerX - o.x, centerY - o.y);
+
+            // Hit Detection
+            if (distToPlayer < player.radius + o.radius - 2 && invulnerableFrames===0) {
+                if (player.hasShield) {
+                    player.hasShield = false;
+                    updateShieldUI();
+                    playSound('break');
+                    createParticles(px, py, '#00f3ff', 25, 6);
+                    createShockwave(px, py, '#00f3ff', 70);
+                    obstacles.splice(i, 1);
+                    continue;
+                } else {
+                    if(!reviveUsed){reviveUsed=true;invulnerableFrames=150;obstacles.splice(i,1);showToast('💫 REVIVED!');continue;}gameOver();
+                    break;
+                }
+            }
+
+            // Near-Miss Bonus
+            if (!o.passedNear && Math.abs(distToCenter - orbitRadius) < 18 && distToPlayer < player.radius + o.radius + 24) {
+                o.passedNear = true;
+                score += 2;
+                scoreEl.innerText = score;
+                combo++;
+                if (combo > maxCombo) maxCombo = combo;
+                comboTimer = 210;
+                updateComboUI();
+                checkAchievements();
+                playSound('near');
+                createFloatingText(px, py - 15, 'CLOSE CALL! +2', '#ff00aa');
+            }
+
+            if (distToCenter > Math.max(width, height)) {
+                obstacles.splice(i, 1);
+            }
+        }
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.03;
+        if (p.alpha <= 0) particles.splice(i, 1);
+    }
+
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+        let sw = shockwaves[i];
+        sw.r += 3.5;
+        sw.alpha -= 0.04;
+        if (sw.alpha <= 0 || sw.r >= sw.maxR) shockwaves.splice(i, 1);
+    }
+
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        let ft = floatingTexts[i];
+        ft.y += ft.vy;
+        ft.alpha -= 0.025;
+        if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+    }
+}
+
+function draw() {
+    ctx.save();
+    if (shakeAmount > 0) {
+        ctx.translate((Math.random() - 0.5) * shakeAmount, (Math.random() - 0.5) * shakeAmount);
+    }
+
+    ctx.fillStyle = feverFrames?'#16071f':'#05050c';
+    ctx.fillRect(0, 0, width, height);
+    // Animated neon grid
+    ctx.save();
+    ctx.strokeStyle='rgba(0,243,255,0.035)';
+    ctx.lineWidth=1;
+    const grid=44, shift=(Date.now()*0.012)%grid;
+    for(let x=shift;x<width;x+=grid){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,height);ctx.stroke();}
+    for(let y=shift;y<height;y+=grid){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(width,y);ctx.stroke();}
+    ctx.restore();
+
+    // Draw Background Stars
+    bgStars.forEach(s => {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
+        ctx.fill();
+    });
+
+    // Orbit Track Ring
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, orbitRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 243, 255, 0.12)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    for(const factor of orbitScales){ctx.beginPath();ctx.arc(centerX,centerY,orbitRadius*factor,0,Math.PI*2);ctx.strokeStyle=factor===orbitScales[orbitIndex]?'rgba(0,243,255,.25)':'rgba(160,100,255,.12)';ctx.lineWidth=2;ctx.stroke();}
+    if(laser){ctx.save();ctx.translate(centerX,centerY);ctx.rotate(laser.angle);ctx.strokeStyle=laser.warning>0?'rgba(255,80,80,.32)':'#ff315f';ctx.lineWidth=laser.warning>0?3:12;ctx.shadowBlur=laser.warning>0?0:22;ctx.shadowColor='#ff315f';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(orbitRadius*1.45,0);ctx.stroke();ctx.restore();}
+    if(boss){ctx.save();ctx.strokeStyle='#ff3366';ctx.lineWidth=4;ctx.shadowColor='#ff3366';ctx.shadowBlur=15;ctx.beginPath();ctx.arc(centerX,centerY,30+Math.sin(Date.now()*.01)*5,0,Math.PI*2);ctx.stroke();ctx.restore();}
+    // Center Pulse Core
+    const pulse = Math.sin(Date.now() * 0.006) * 4;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 18 + pulse, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 0, 85, 0.18)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 7, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff0055';
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = '#ff0055';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Draw Shockwaves
+    shockwaves.forEach(sw => {
+        ctx.beginPath();
+        ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+        ctx.strokeStyle = sw.color;
+        ctx.globalAlpha = Math.max(0, sw.alpha);
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+    });
+
+    // Draw Coins
+    coins.forEach(c => {
+        const cx = centerX + Math.cos(c.angle) * currentOrbit();
+        const cy = centerY + Math.sin(c.angle) * currentOrbit();
+        ctx.beginPath();
+        ctx.arc(cx, cy, c.radius * c.scale, 0, Math.PI * 2);
+        ctx.fillStyle = '#00ffaa';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00ffaa';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+    // Draw Shield Powerups
+    powerups.forEach(p => {
+        const pxPos = centerX + Math.cos(p.angle) * currentOrbit();
+        const pyPos = centerY + Math.sin(p.angle) * currentOrbit();
+        ctx.beginPath();
+        ctx.arc(pxPos, pyPos, p.radius * p.scale, 0, Math.PI * 2);
+        ctx.fillStyle = '#00f3ff';
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#00f3ff';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+    // Draw Player & Trail
+    if (isPlaying) {
+        player.trail.forEach((t, index) => {
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, player.radius * (index / player.trail.length) * 0.8, 0, Math.PI * 2);
+            ctx.fillStyle = getActiveSkinColor();ctx.globalAlpha=Math.max(0,t.alpha*.4);
+            ctx.fill();ctx.globalAlpha=1;
+        });
+
+        const px = centerX + Math.cos(player.angle) * currentOrbit();
+        const py = centerY + Math.sin(player.angle) * currentOrbit();
+
+        // Shield Aura
+        if (player.hasShield) {
+            ctx.beginPath();
+            ctx.arc(px, py, player.radius + 7, 0, Math.PI * 2);
+            ctx.strokeStyle = '#00f3ff';
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#00f3ff';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        const activeSkinHex = getActiveSkinColor();if(invulnerableFrames>0 && Math.floor(invulnerableFrames/5)%2)ctx.globalAlpha=.35;
+        ctx.beginPath();
+        ctx.arc(px, py, player.radius, 0, Math.PI * 2);
+        ctx.fillStyle = activeSkinHex;
+        ctx.shadowBlur = 22;
+        ctx.shadowColor = activeSkinHex;
+        ctx.fill();
+        ctx.shadowBlur = 0;ctx.globalAlpha=1;
+    }
+
+    // Draw Red Spikes
+    obstacles.forEach(o => {
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, o.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#ff0055';
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = '#ff0055';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+    // Draw Particles
+    particles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+
+    // Draw Floating Texts
+    floatingTexts.forEach(ft => {
+        ctx.font = '900 15px Inter, sans-serif';
+        ctx.fillStyle = ft.color;
+        ctx.globalAlpha = Math.max(0, ft.alpha);
+        ctx.textAlign = 'center';
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.globalAlpha = 1;
+    });
+
+    if(isPaused){
+      ctx.fillStyle='rgba(2,6,23,.65)';ctx.fillRect(0,0,width,height);
+      ctx.textAlign='center';ctx.fillStyle='#a5f3fc';
+      ctx.font='900 30px Orbitron, sans-serif';ctx.fillText('PAUSED',centerX,centerY);
+      ctx.font='14px Inter, sans-serif';ctx.fillText('Tap pause or press P to resume',centerX,centerY+35);
+    }
+    ctx.restore();
+    requestAnimationFrame(() => {
+        update();
+        draw();
+    });
+}
+
+draw();
+
+// Android lifecycle safety. Pauses the run when switching apps.
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && isPlaying && !isPaused) togglePause();
+});
+// Capacitor's Android back button will be intercepted if the App plugin is installed.
+(async () => {
+    try {
+        const cap = window.Capacitor;
+        if (cap?.Plugins?.App) {
+            await cap.Plugins.App.addListener('backButton', () => {
+                if (!leaderboardModal.classList.contains('hidden')) closeLeaderboard();
+                else if (isPlaying && !isPaused) togglePause();
+            });
+        }
+    } catch (err) { console.warn('Native back handling unavailable', err); }
+})();
+</script>
+</body>
+</html>
